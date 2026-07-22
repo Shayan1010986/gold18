@@ -230,8 +230,8 @@ failed condition(s) and the direction(s) you tested.
 📋 خلاصه بازار | طلای ۱۸ عیار اتحادیه
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🕐 آخرین کندل: [تاریخ و ساعت]   💰 آخرین قیمت: [عدد] تومان
-📈 روند H4: [صعودی/نزولی/رنج] (امتیاز [±n]) | 📊 روند H1: [..] (امتیاز [±n]) | روند M15: [..]
-🔴 مقاومت کلیدی: [قیمت] ([قدرت]|[TF])   🟢 حمایت کلیدی: [قیمت] ([قدرت]|[TF])
+📈 روند ۴ساعته: [صعودی/نزولی/رنج] (امتیاز [±n]) | 📊 روند ۱ساعته: [..] | روند ۱۵دقیقه: [..]
+🔴 مقاومت کلیدی: [قیمت] ([قدرت]|[تایم‌فریم])   🟢 حمایت کلیدی: [قیمت] ([قدرت]|[تایم‌فریم])
 🧭 جمع‌بندی جهت: خرید/فروش/خنثی  ←  (تعداد سناریوی خرید بررسی‌شده: n | فروش: n)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -255,7 +255,11 @@ failed condition(s) and the direction(s) you tested.
 ═════════════════════
 
 ### Output rules
-- All numeric outputs in Persian digits.
-- Every signal MUST show net-after-cost profit and net R:R. A signal without them is invalid.
+- All numeric outputs in Persian digits (۰۱۲۳…) with Persian decimal separator (٫).
+- PURE PERSIAN — no Latin letters anywhere in the final output. Write timeframes as
+  ۴ساعته / ۱ساعته / ۱۵دقیقه, and indicators in Persian (میانگین ۵۰، میانگین ۲۰۰،
+  نسبت ریسک‌به‌ریوارد، نوسان). Never print EMA/H4/H1/M15/RSI/ATR/R:R as Latin.
+- Every signal MUST show net-after-cost profit and net risk:reward. A signal without them is invalid.
 - Max 3 signals. Prefer fewer, higher-quality signals over filling the quota.
 - Honesty over action: if the honest answer is "no trade", say it.
+- When run via bot/signal_engine.py, relay the engine output verbatim — it is already pure Persian.

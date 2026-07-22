@@ -260,10 +260,10 @@ def format_report(ctx, signals):
     L.append("─────────────")
     s4_fa = fa_num(f"{ctx['s4']:+d}")
     s1_fa = fa_num(f"{ctx['s1']:+d}")
-    L.append(f"📈 روند H4: {ctx['trend_h4']} (امتیاز {s4_fa})")
-    L.append(f"   EMA50: {fa_price(ctx['ema50_h4'])} | EMA200: {fa_price(ctx['ema200_h4'])}")
-    L.append(f"📊 روند H1: {ctx['trend_h1']} (امتیاز {s1_fa}) | روند M15: {ctx['trend_m15']}")
-    L.append(f"   EMA50: {fa_price(ctx['ema50_h1'])} | EMA200: {fa_price(ctx['ema200_h1'])}")
+    L.append(f"📈 روند ۴ساعته: {ctx['trend_h4']} (امتیاز {s4_fa})")
+    L.append(f"   میانگین ۵۰: {fa_price(ctx['ema50_h4'])} | میانگین ۲۰۰: {fa_price(ctx['ema200_h4'])}")
+    L.append(f"📊 روند ۱ساعته: {ctx['trend_h1']} (امتیاز {s1_fa}) | روند ۱۵دقیقه: {ctx['trend_m15']}")
+    L.append(f"   میانگین ۵۰: {fa_price(ctx['ema50_h1'])} | میانگین ۲۰۰: {fa_price(ctx['ema200_h1'])}")
     L.append("─────────────")
     if res0:
         L.append(f"🔴 مقاومت کلیدی: {fa_price(res0)} تومان")
@@ -277,7 +277,7 @@ def format_report(ctx, signals):
     if not signals:
         L.append("")
         L.append("⛔️ شرایط بازار برای ورود مناسب نیست")
-        reason = "هیچ هدفی بعد از هزینه به حد نصاب R:R خالص ۱٫۵ یا کف ATR نرسید."
+        reason = "هیچ هدفی بعد از هزینه به حد نصاب نسبت ریسک‌به‌ریوارد خالص ۱٫۵ یا کف نوسان نرسید."
         if not ctx["res"] and t["BUY"]:
             reason = "قیمت روی سقف دامنه است و هدف سودآوری بالای آن وجود ندارد."
         L.append("دلیل: " + reason)
@@ -314,7 +314,7 @@ def format_report(ctx, signals):
         L.append(f"⭕️ شرط ابطال: بسته‌شدن آن‌سوی {fa_price(sg['sl'])} تومان")
         L.append("═════════════════════")
     L.append("")
-    L.append("⚠️ هزینه‌ی اصلی طلاین اسپرد است (~۰٫۸٪ رفت‌وبرگشت)، نه کارمزد ۵۰۰۰ تومان.")
+    L.append("⚠️ هزینه‌ی اصلی طلاین اسپرد است (حدود ۰٫۸٪ رفت‌وبرگشت)، نه کارمزد ۵۰۰۰ تومان.")
     L.append("⚠️ حجم معامله‌ات را بزرگ نگه دار تا کارمزد ثابت ناچیز بماند؛ ریسک گپ شبانه و")
     L.append("   برگشت معامله در انحراف >۵٪ قیمت را هم در نظر بگیر.")
     return "\n".join(L)
