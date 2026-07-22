@@ -23,7 +23,7 @@ MIN_NET_RR = float(os.getenv("MIN_NET_RR", "1.5"))
 MAX_SIGNALS = int(os.getenv("MAX_SIGNALS", "3"))
 
 # ---------------------------------------------------------------- Persian helpers
-_FA = str.maketrans("0123456789", "۰۱۲۳۴۵۶۷۸۹")
+_FA = str.maketrans("0123456789.", "۰۱۲۳۴۵۶۷۸۹٫")
 
 def fa_num(x):
     return str(x).translate(_FA)
@@ -200,9 +200,11 @@ def format_report(ctx, signals):
     L.append(f"🕐 آخرین کندل: {fa_num(dt.strftime('%Y-%m-%d %H:%M'))}")
     L.append(f"💰 آخرین قیمت: {fa_price(ctx['price'])} تومان")
     L.append("─────────────")
-    L.append(f"📈 روند H4: {ctx['trend_h4']} (امتیاز {fa_num(f'{ctx[\"s4\"]:+d}')})")
+    s4_fa = fa_num(f"{ctx['s4']:+d}")
+    s1_fa = fa_num(f"{ctx['s1']:+d}")
+    L.append(f"📈 روند H4: {ctx['trend_h4']} (امتیاز {s4_fa})")
     L.append(f"   EMA50: {fa_price(ctx['ema50_h4'])} | EMA200: {fa_price(ctx['ema200_h4'])}")
-    L.append(f"📊 روند H1: {ctx['trend_h1']} (امتیاز {fa_num(f'{ctx[\"s1\"]:+d}')}) | روند M15: {ctx['trend_m15']}")
+    L.append(f"📊 روند H1: {ctx['trend_h1']} (امتیاز {s1_fa}) | روند M15: {ctx['trend_m15']}")
     L.append(f"   EMA50: {fa_price(ctx['ema50_h1'])} | EMA200: {fa_price(ctx['ema200_h1'])}")
     L.append("─────────────")
     if res0:
@@ -236,8 +238,9 @@ def format_report(ctx, signals):
             L.append(f"🎯 حد سود دوم: {fa_price(sg['tp2'])} تومان (فاصله {fa_pct(sg['tp2_pct'])})")
         else:
             L.append("🎯 حد سود دوم: تعریف‌نشده (در هدف اول خروج/کاهش حجم)")
+        rr_fa = fa_num(f"{sg['net_rr']:.2f}")
         L.append(f"💵 سود خالص بعد از هزینه (هدف اول): {fa_pct(sg['tp1_net'])}")
-        L.append(f"⚖️ نسبت ریسک‌به‌ریوارد خالص: {fa_num(f'{sg[\"net_rr\"]:.2f}')}")
+        L.append(f"⚖️ نسبت ریسک‌به‌ریوارد خالص: {rr_fa}")
         L.append(f"⏱️ بازه زمانی: {'چند ساعت تا چند روز' if sg['mode']=='SWING' else '۱ تا ۶ ساعت'}")
         L.append(f"⭕️ شرط ابطال: بسته‌شدن آن‌سوی {fa_price(sg['sl'])} تومان")
         L.append("═════════════════════")
