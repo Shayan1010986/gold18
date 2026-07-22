@@ -1,0 +1,39 @@
+{
+  "extraKnownMarketplaces": {
+    "agiprolabs-claude-trading-skills": {
+      "source": {
+        "source": "github",
+        "repo": "agiprolabs/claude-trading-skills"
+      }
+    },
+    "tvremix-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "tvremix/claude-plugin"
+      }
+    },
+    "claude-equity-research-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "quant-sentiment-ai/claude-equity-research"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "trading-skills@agiprolabs-claude-trading-skills": true,
+    "tvremix@tvremix-marketplace": true,
+    "trading-ideas@claude-equity-research-marketplace": true
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/session-start.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
