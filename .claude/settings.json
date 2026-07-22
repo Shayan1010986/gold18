@@ -1,0 +1,15 @@
+{
+  "extraKnownMarketplaces": {
+    "anthropic-agent-skills": {
+      "source": "github",
+      "repo": "anthropics/skills"
+    },
+    "tradermonty-trading": {
+      "source": "github",
+      "repo": "tradermonty/claude-trading-skills"
+    }
+  },
+  "enabledPlugins": {
+    "example-skills@anthropic-agent-skills": true
+  }
+}
