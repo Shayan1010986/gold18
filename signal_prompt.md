@@ -19,7 +19,7 @@ COST_PCT            = 2*SPREAD_PER_SIDE_PCT + 2*FLAT_FEE_TOMAN/NOTIONAL_TOMAN*10
                                      #   ≈ 0.85% round-trip at defaults. THIS is the real hurdle,
                                      #   not the 5000-Toman flat fee. Scalping rarely clears it.
 MIN_TP_ATR_MULT     = 1.0            # SWING TP1 ≥ this × entry-frame ATR. For SCALP use ≥ 1.5
-MIN_NET_PROFIT_PCT  = 0.5            # TP1 must net at least this AFTER cost, else discard
+MIN_NET_PROFIT_PCT  = 1.0            # TP1 must net at least this AFTER cost, else discard
 DIRECTION_ALLOWED   = BOTH           # BOTH = long and short are equally valid
 MAX_SIGNALS         = 3              # per run
 MAX_SIGNALS_PER_DAY = 4              # hard cap across the day — zero commission is NOT a licence to
@@ -185,6 +185,13 @@ Print a compact SCORECARD table: TF | trend score | RSI | MACD | note.
     If price sits at a range extreme with NO real level ahead (no overhead target for a
     long / no target below for a short), there is no defined objective → output NEUTRAL.
     Do not chase a breakout without a measured target.
+
+    COST COMPENSATION (report these so the cost is transparent, not hidden):
+      • Effective fill price = you BUY at ref×(1+SPREAD_PER_SIDE) / SELL at ref×(1−SPREAD_PER_SIDE).
+      • Breakeven (reference) = entry×(1+COST_PCT/100) for a long, ×(1−…) for a short.
+        Price must pass breakeven before ANY real profit exists.
+      • TP1 is chosen so net = TP1_move − COST ≥ MIN_NET_PROFIT_PCT. Moving TP further only
+        relocates the net target; it does NOT erase the cost. Never widen SL to "recover" cost.
     Expected time-to-TP from average entry-frame ATR velocity; SWING may span hours–days,
     SCALP should resolve within ~1–6h (flag if unlikely).
 
@@ -217,7 +224,9 @@ failed condition(s) and the direction(s) you tested.
 ═════════════════════
 🔔 سیگنال | طلای ۱۸ عیار ([اسکالپ/سویینگ])
 📊 نوع معامله: [خرید 📈 / فروش 📉]
-💰 نقطه ورود: [عدد فارسی] تومان
+💰 نقطه ورود (قیمت مرجع): [عدد فارسی] تومان
+🏷️ قیمت خرید/فروش واقعی شما (با اسپرد ±SPREAD_PER_SIDE): [عدد فارسی] تومان
+🟰 قیمت سربه‌سر (مرجع = ورود ± COST): [عدد فارسی] تومان — تا این‌جا سود خالص صفر است
 🛡️ حد ضرر: [عدد فارسی] تومان  (فاصله: [٪])
 🎯 حد سود اول: [عدد فارسی] تومان  (فاصله: [٪])
 🎯 حد سود دوم: [عدد فارسی] تومان  (فاصله: [٪])

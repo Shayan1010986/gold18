@@ -32,8 +32,9 @@ COST = 2 * SPREAD_PER_SIDE + FLAT_PCT_RT + SLIPPAGE
 MIN_TP_ATR = {"SWING": float(os.getenv("MIN_TP_ATR_SWING", "1.0")),
               "SCALP": float(os.getenv("MIN_TP_ATR_SCALP", "1.5"))}
 MIN_NET_RR = float(os.getenv("MIN_NET_RR", "1.5"))
-MIN_NET_PROFIT = float(os.getenv("MIN_NET_PROFIT_PCT", "0.5"))
+MIN_NET_PROFIT = float(os.getenv("MIN_NET_PROFIT_PCT", "1.0"))
 MAX_SIGNALS = int(os.getenv("MAX_SIGNALS", "3"))
+S_SIDE = SPREAD_PER_SIDE / 100.0  # spread per side as a fraction (for effective fill prices)
 
 # ---------------------------------------------------------------- Persian helpers
 _FA = str.maketrans("0123456789.", "۰۱۲۳۴۵۶۷۸۹٫")
@@ -193,7 +194,14 @@ def analyze(path):
         tp1 = passing[0]
         tp2 = next((p for p in passing if p[3] >= 2.5 and p[0] != tp1[0]), None)
         sl = _round100(price * (1 - slpct/100) if direction == "BUY" else price * (1 + slpct/100))
+        if direction == "BUY":
+            eff_entry = _round100(price * (1 + S_SIDE))          # you BUY at the ask (pay more)
+            breakeven = _round100(price * (1 + COST/100))        # ref price where net P&L = 0
+        else:
+            eff_entry = _round100(price * (1 - S_SIDE))          # you SELL at the bid (get less)
+            breakeven = _round100(price * (1 - COST/100))
         signals.append(dict(mode=mode, direction=direction, entry=_round100(price),
+                            eff_entry=eff_entry, breakeven=breakeven,
                             sl=sl, sl_pct=slpct,
                             tp1=_round100(tp1[0]), tp1_pct=tp1[1], tp1_net=tp1[2], net_rr=tp1[3],
                             tp2=(_round100(tp2[0]) if tp2 else None),
@@ -244,8 +252,11 @@ def format_report(ctx, signals):
         L.append("")
         L.append("═════════════════════")
         L.append(f"🔔 سیگنال | طلای ۱۸ عیار ({mode_fa[sg['mode']]})")
+        buy = sg["direction"] == "BUY"
         L.append(f"📊 نوع معامله: {dir_fa[sg['direction']]}")
-        L.append(f"💰 نقطه ورود: {fa_price(sg['entry'])} تومان")
+        L.append(f"💰 نقطه ورود (قیمت مرجع): {fa_price(sg['entry'])} تومان")
+        L.append(f"🏷️ قیمت {'خرید' if buy else 'فروش'} واقعی شما (با اسپرد): {fa_price(sg['eff_entry'])} تومان")
+        L.append(f"🟰 قیمت سربه‌سر: {fa_price(sg['breakeven'])} تومان (تا این‌جا سود خالص = صفر)")
         L.append(f"🛡️ حد ضرر: {fa_price(sg['sl'])} تومان (فاصله {fa_pct(sg['sl_pct'])})")
         L.append(f"🎯 حد سود اول: {fa_price(sg['tp1'])} تومان (فاصله {fa_pct(sg['tp1_pct'])})")
         if sg["tp2"]:
