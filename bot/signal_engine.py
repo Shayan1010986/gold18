@@ -2,24 +2,37 @@
 Deterministic multi-timeframe signal engine for Iranian 18k gold (Etehadiye).
 Mirrors signal_prompt.md. Pure Python + pandas — no LLM required.
 
+Cost model (Taline / طلاین, from platform cost research):
+  The advertised "5000 Toman flat" is marketing — the real cost is the SPREAD
+  (~0.4% per side = ~0.8% round-trip). The flat fee only bites on tiny orders.
+  Total round-trip cost % = 2*spread_per_side + 2*flat_fee/notional*100 + slippage.
+
 Config via environment variables (all optional, sane defaults):
-  FEE_PCT              round-trip commission        (default 0.0  = zero-commission venue)
-  SPREAD_PCT           bid/ask spread + slippage     (default 0.10)
-  MIN_TP_ATR_SWING     TP1 >= x*ATR for swing        (default 1.0)
-  MIN_TP_ATR_SCALP     TP1 >= x*ATR for scalp        (default 1.5)
-  MIN_NET_RR           minimum net risk:reward       (default 1.5)
-  MAX_SIGNALS          cap on emitted signals        (default 3)
+  SPREAD_PER_SIDE_PCT  dashboard vs reference price, each side  (default 0.4)
+  FLAT_FEE_TOMAN       fixed commission per trade (each side)   (default 5000)
+  NOTIONAL_TOMAN       your typical order value in Toman        (default 20000000)
+  SLIPPAGE_PCT         extra round-trip execution buffer        (default 0.0)
+  MIN_TP_ATR_SWING     TP1 >= x*ATR for swing                   (default 1.0)
+  MIN_TP_ATR_SCALP     TP1 >= x*ATR for scalp                   (default 1.5)
+  MIN_NET_RR           minimum net risk:reward                  (default 1.5)
+  MIN_NET_PROFIT_PCT   minimum net profit on TP1 after cost     (default 0.5)
+  MAX_SIGNALS          cap on emitted signals                   (default 3)
 """
 import os
 import pandas as pd
 import numpy as np
 
-FEE = float(os.getenv("FEE_PCT", "0.0"))
-SPREAD = float(os.getenv("SPREAD_PCT", "0.10"))
-COST = FEE + SPREAD
+SPREAD_PER_SIDE = float(os.getenv("SPREAD_PER_SIDE_PCT", "0.4"))
+FLAT_FEE_TOMAN = float(os.getenv("FLAT_FEE_TOMAN", "5000"))
+NOTIONAL_TOMAN = float(os.getenv("NOTIONAL_TOMAN", "20000000"))
+SLIPPAGE = float(os.getenv("SLIPPAGE_PCT", "0.0"))
+# Total round-trip cost as a percent of notional (spread both sides + flat fee both sides + slippage)
+FLAT_PCT_RT = (2 * FLAT_FEE_TOMAN / NOTIONAL_TOMAN * 100) if NOTIONAL_TOMAN > 0 else 0.0
+COST = 2 * SPREAD_PER_SIDE + FLAT_PCT_RT + SLIPPAGE
 MIN_TP_ATR = {"SWING": float(os.getenv("MIN_TP_ATR_SWING", "1.0")),
               "SCALP": float(os.getenv("MIN_TP_ATR_SCALP", "1.5"))}
 MIN_NET_RR = float(os.getenv("MIN_NET_RR", "1.5"))
+MIN_NET_PROFIT = float(os.getenv("MIN_NET_PROFIT_PCT", "0.5"))
 MAX_SIGNALS = int(os.getenv("MAX_SIGNALS", "3"))
 
 # ---------------------------------------------------------------- Persian helpers
@@ -173,7 +186,7 @@ def analyze(path):
             move = abs(tp - price) / price * 100
             net = move - COST
             rr = (move - COST) / (slpct + COST)
-            if rr >= MIN_NET_RR and move >= min_tp and SPREAD <= 0.20 * move:
+            if rr >= MIN_NET_RR and move >= min_tp and net >= MIN_NET_PROFIT:
                 passing.append((tp, move, net, rr))
         if not passing:
             continue
@@ -213,6 +226,7 @@ def format_report(ctx, signals):
         L.append(f"🟢 حمایت کلیدی: {fa_price(sup0)} تومان")
     t = ctx["tested"]
     L.append(f"🧭 سناریوهای بررسی‌شده — خرید: {fa_num(t['BUY'])} | فروش: {fa_num(t['SELL'])}")
+    L.append(f"💸 هزینه‌ی فرض‌شده (رفت‌وبرگشت): {fa_pct(COST)}  (اسپرد {fa_pct(2*SPREAD_PER_SIDE)} + کارمزد ثابت)")
     L.append("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
     if not signals:
@@ -245,7 +259,9 @@ def format_report(ctx, signals):
         L.append(f"⭕️ شرط ابطال: بسته‌شدن آن‌سوی {fa_price(sg['sl'])} تومان")
         L.append("═════════════════════")
     L.append("")
-    L.append("⚠️ ریسک گپ شبانه (بازار ۲۲–۹ بسته) و اسپرد واقعی پلتفرم را در نظر بگیر.")
+    L.append("⚠️ هزینه‌ی اصلی طلاین اسپرد است (~۰٫۸٪ رفت‌وبرگشت)، نه کارمزد ۵۰۰۰ تومان.")
+    L.append("⚠️ حجم معامله‌ات را بزرگ نگه دار تا کارمزد ثابت ناچیز بماند؛ ریسک گپ شبانه و")
+    L.append("   برگشت معامله در انحراف >۵٪ قیمت را هم در نظر بگیر.")
     return "\n".join(L)
 
 def run(path):

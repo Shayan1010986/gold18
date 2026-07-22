@@ -6,16 +6,20 @@
 ================================================================================
 ## CONFIG (set before you start)
 ================================================================================
-MODE                = SWING          # SWING (default) | SCALP  (SCALP is now viable — fee is 0)
-ROUND_TRIP_FEE_PCT  = 0.0            # zero-commission platform (user confirmed). Buy+sell commission.
-SPREAD_BUFFER_PCT   = 0.10           # ⚠️ "zero commission" ≠ zero cost. The venue still earns the
-                                     #    bid/ask spread + slippage. This buffer stands in for that.
-                                     #    Measure your real round-trip spread and set it. 0 only if
-                                     #    you have verified there is truly no spread (rare).
-COST_PCT            = ROUND_TRIP_FEE_PCT + SPREAD_BUFFER_PCT   # the ONLY cost figure used below
+MODE                = SWING          # SWING (default) | SCALP
+# --- Cost model for Taline (طلاین), from platform cost research ---
+# The advertised "5000 Toman flat fee" is MARKETING. The real cost is the SPREAD:
+# ~0.4% per side ⇒ ~0.8% round-trip. The flat fee only bites on very small orders.
+SPREAD_PER_SIDE_PCT = 0.4            # dashboard price vs reference, each side (from research)
+FLAT_FEE_TOMAN      = 5000           # fixed commission per trade, each side
+NOTIONAL_TOMAN      = 20000000       # your typical order value — SET THIS to your real size.
+                                     #   Small orders make the flat fee huge in % terms.
+SLIPPAGE_PCT        = 0.0            # optional extra execution buffer
+COST_PCT            = 2*SPREAD_PER_SIDE_PCT + 2*FLAT_FEE_TOMAN/NOTIONAL_TOMAN*100 + SLIPPAGE_PCT
+                                     #   ≈ 0.85% round-trip at defaults. THIS is the real hurdle,
+                                     #   not the 5000-Toman flat fee. Scalping rarely clears it.
 MIN_TP_ATR_MULT     = 1.0            # SWING TP1 ≥ this × entry-frame ATR. For SCALP use ≥ 1.5
-                                     #   (with a 0.10% spread, 1×M15-ATR≈0.37% leaves spread at 27%
-                                     #   of the move — too much; ≥1.5×ATR keeps spread under 20%).
+MIN_NET_PROFIT_PCT  = 0.5            # TP1 must net at least this AFTER cost, else discard
 DIRECTION_ALLOWED   = BOTH           # BOTH = long and short are equally valid
 MAX_SIGNALS         = 3              # per run
 MAX_SIGNALS_PER_DAY = 4              # hard cap across the day — zero commission is NOT a licence to
@@ -31,15 +35,15 @@ ACCOUNT_CAN_SHORT   = TRUE           # user can both buy and sell/short
 ================================================================================
 ## ⚠️ TWO RULES THAT OVERRIDE EVERYTHING ELSE
 ================================================================================
-RULE A — COST-AWARE PROFITABILITY (commission is 0, but cost is NOT — see SPREAD_BUFFER):
-    Use COST_PCT (= fee + spread buffer) everywhere. Every candidate MUST satisfy, after cost:
+RULE A — COST-AWARE PROFITABILITY (the flat fee is trivial; the SPREAD is the real cost):
+    Use COST_PCT (≈0.85% round-trip at defaults) everywhere. Every candidate MUST satisfy:
       • net_R:R = (TP1_move% − COST_PCT) / (SL_move% + COST_PCT)  ≥ 1.5
       • Anti-noise floor: TP1_move% ≥ MIN_TP_ATR_MULT × (entry-frame ATR%)
-      • Spread-edge rule: SPREAD_BUFFER_PCT ≤ 20% of TP1_move%  (don't surrender the
-        move to the spread before you start; skip if the spread eats >1/5 of the target).
+      • Net profit floor: TP1_move% − COST_PCT ≥ MIN_NET_PROFIT_PCT
     If a candidate cannot reach a real key level that satisfies ALL THREE, DISCARD it.
     Do NOT shrink the stop or inflate the target to force a pass — use real levels only.
-    Note: with COST≈0 the binding constraint is now the ATR floor + R:R, not the fee.
+    Reality check: with a ~0.85% round-trip spread, SCALP targets (≈1–1.5×M15-ATR ≈
+    0.4–0.6%) almost never clear the gate. Expect SWING moves ≥ ~3.5% to be the norm.
 
 RULE B — NO DIRECTIONAL DEFAULT (kill the "always BUY" bias):
     • BUY and SELL are evaluated with IDENTICAL rigor. There is no default direction.
@@ -159,7 +163,7 @@ Print a compact SCORECARD table: TF | trend score | RSI | MACD | note.
 
 6b) QUALITY GATE — every box must be TRUE, else discard the candidate:
     □ 1  ≥ 2 of 3 agree on H1: {trend score sign, RSI vs 50, MACD histogram sign}
-    □ 2  RULE A passes: net_R:R ≥ 1.5 AND TP1_move ≥ MIN_TP_ATR_MULT×ATR AND spread ≤ 20% of TP1
+    □ 2  RULE A passes: net_R:R ≥ 1.5 AND TP1_move ≥ MIN_TP_ATR_MULT×ATR AND net ≥ MIN_NET_PROFIT_PCT
     □ 3  Volatility sane: entry-frame ATR ≤ 2× its own 20-period average (no vol spike)
     □ 4  Entry not trapped between two levels each < 0.3% away
     □ 5  SL distance within the mode's min/max band (SWING 0.8–3.0% · SCALP 0.4–1.0%)
