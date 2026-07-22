@@ -167,46 +167,83 @@ def analyze(path):
                trend_h4=trend_word(s4), trend_h1=trend_word(s1), trend_m15=trend_word(s15),
                atr_m15=c15.atrpct, atr_h1=c1.atrpct)
 
+    def find_targets(entry, direction, slpct, min_tp):
+        """Return (tp1, tp2) real levels that clear the cost gate from `entry`, or (None, None).
+        Each tuple is (level, move%, net%, netRR). Targets: resistances above (buy) / supports below (sell)."""
+        if direction == "BUY":
+            levels = sorted(l for l in res if l > entry)
+        else:
+            levels = sorted((l for l in sup if l < entry), reverse=True)
+        passing = []
+        for tp in levels:
+            move = abs(tp - entry) / entry * 100
+            net = move - COST
+            rr = (move - COST) / (slpct + COST)
+            if rr >= MIN_NET_RR and move >= min_tp and net >= MIN_NET_PROFIT:
+                passing.append((tp, move, net, rr))
+        if not passing:
+            return None, None
+        tp1 = passing[0]
+        tp2 = next((p for p in passing if p[3] >= 2.5 and p[0] != tp1[0]), None)
+        return tp1, tp2
+
+    def build(mode, direction, entry_type, entry, slpct, tp1, tp2, trigger=None):
+        sl = _round100(entry * (1 - slpct/100) if direction == "BUY" else entry * (1 + slpct/100))
+        if direction == "BUY":
+            eff = _round100(entry * (1 + S_SIDE))        # you BUY at the ask (pay more)
+            be = _round100(entry * (1 + COST/100))       # price where net P&L = 0
+        else:
+            eff = _round100(entry * (1 - S_SIDE))        # you SELL at the bid (get less)
+            be = _round100(entry * (1 - COST/100))
+        return dict(mode=mode, direction=direction, entry_type=entry_type,
+                    entry=_round100(entry), eff_entry=eff, breakeven=be,
+                    trigger=(_round100(trigger) if trigger else None),
+                    sl=sl, sl_pct=slpct,
+                    tp1=_round100(tp1[0]), tp1_pct=tp1[1], tp1_net=tp1[2], net_rr=tp1[3],
+                    tp2=(_round100(tp2[0]) if tp2 else None),
+                    tp2_pct=(tp2[1] if tp2 else None),
+                    tp2_net=(tp2[2] if tp2 else None))
+
     signals = []
     tested = {"BUY": 0, "SELL": 0}
     for mode in ("SWING", "SCALP"):
         if mode == "SWING":
             buy, sell = (s4 >= 2 and s1 >= 1), (s4 <= -2 and s1 <= -1)
             slpct = min(max(c1.atrpct * 1.5, 0.8), 3.0)
+            max_pb = 3.0     # max pullback distance for a limit entry (SWING)
         else:
             buy, sell = (s1 >= 1 and s15 >= 2), (s1 <= -1 and s15 <= -2)
             slpct = min(max(c15.atrpct * 1.5, 0.4), 1.0)
+            max_pb = 1.5     # (SCALP)
         direction = "BUY" if buy else ("SELL" if sell else None)
         if direction is None:
             continue
         tested[direction] += 1
         min_tp = MIN_TP_ATR[mode] * c15.atrpct
-        levels = res if direction == "BUY" else sup
-        passing = []
-        for tp in (levels if direction == "BUY" else levels):
-            move = abs(tp - price) / price * 100
-            net = move - COST
-            rr = (move - COST) / (slpct + COST)
-            if rr >= MIN_NET_RR and move >= min_tp and net >= MIN_NET_PROFIT:
-                passing.append((tp, move, net, rr))
-        if not passing:
-            continue
-        tp1 = passing[0]
-        tp2 = next((p for p in passing if p[3] >= 2.5 and p[0] != tp1[0]), None)
-        sl = _round100(price * (1 - slpct/100) if direction == "BUY" else price * (1 + slpct/100))
+
+        # (1) Immediate entry at the current price
+        i1, i2 = find_targets(price, direction, slpct, min_tp)
+        imm = build(mode, direction, "immediate", price, slpct, i1, i2) if i1 else None
+
+        # (2) Limit / pullback entry at the nearest REAL level within max_pb, giving more room
         if direction == "BUY":
-            eff_entry = _round100(price * (1 + S_SIDE))          # you BUY at the ask (pay more)
-            breakeven = _round100(price * (1 + COST/100))        # ref price where net P&L = 0
+            cands = [s for s in sup if 0 < (price - s) / price * 100 <= max_pb]
+            entry_l = max(cands) if cands else None      # nearest support below price
         else:
-            eff_entry = _round100(price * (1 - S_SIDE))          # you SELL at the bid (get less)
-            breakeven = _round100(price * (1 - COST/100))
-        signals.append(dict(mode=mode, direction=direction, entry=_round100(price),
-                            eff_entry=eff_entry, breakeven=breakeven,
-                            sl=sl, sl_pct=slpct,
-                            tp1=_round100(tp1[0]), tp1_pct=tp1[1], tp1_net=tp1[2], net_rr=tp1[3],
-                            tp2=(_round100(tp2[0]) if tp2 else None),
-                            tp2_pct=(tp2[1] if tp2 else None),
-                            tp2_net=(tp2[2] if tp2 else None)))
+            cands = [r for r in res if 0 < (r - price) / price * 100 <= max_pb]
+            entry_l = min(cands) if cands else None       # nearest resistance above price
+        lim = None
+        if entry_l:
+            l1, l2 = find_targets(entry_l, direction, slpct, min_tp)
+            if l1:
+                lim = build(mode, direction, "limit", entry_l, slpct, l1, l2, trigger=entry_l)
+
+        # Show the immediate signal if valid, and the limit one when it is the only option
+        # or has a clearly better net R:R (user asked to see both).
+        if imm:
+            signals.append(imm)
+        if lim and (imm is None or lim["net_rr"] > imm["net_rr"] + 0.1):
+            signals.append(lim)
     ctx["tested"] = tested
     return ctx, signals[:MAX_SIGNALS]
 
@@ -250,11 +287,18 @@ def format_report(ctx, signals):
     dir_fa = {"BUY": "خرید 📈", "SELL": "فروش 📉"}
     for sg in signals:
         L.append("")
-        L.append("═════════════════════")
-        L.append(f"🔔 سیگنال | طلای ۱۸ عیار ({mode_fa[sg['mode']]})")
         buy = sg["direction"] == "BUY"
+        is_limit = sg.get("entry_type") == "limit"
+        etype_fa = "ورود لیمیت/شرطی" if is_limit else "ورود فوری"
+        L.append("═════════════════════")
+        L.append(f"🔔 سیگنال | طلای ۱۸ عیار ({mode_fa[sg['mode']]} — {etype_fa})")
         L.append(f"📊 نوع معامله: {dir_fa[sg['direction']]}")
-        L.append(f"💰 نقطه ورود (قیمت مرجع): {fa_price(sg['entry'])} تومان")
+        if is_limit:
+            L.append(f"💰 نقطه ورود لیمیت (منتظر بمان): {fa_price(sg['entry'])} تومان")
+            L.append(f"⏳ فعال‌سازی: وقتی قیمت به {fa_price(sg['trigger'])} برسد "
+                     f"({'پول‌بک به حمایت' if buy else 'پول‌بک به مقاومت'} — ممکن است پر نشود)")
+        else:
+            L.append(f"💰 نقطه ورود (قیمت مرجع): {fa_price(sg['entry'])} تومان")
         L.append(f"🏷️ قیمت {'خرید' if buy else 'فروش'} واقعی شما (با اسپرد): {fa_price(sg['eff_entry'])} تومان")
         L.append(f"🟰 قیمت سربه‌سر: {fa_price(sg['breakeven'])} تومان (تا این‌جا سود خالص = صفر)")
         L.append(f"🛡️ حد ضرر: {fa_price(sg['sl'])} تومان (فاصله {fa_pct(sg['sl_pct'])})")

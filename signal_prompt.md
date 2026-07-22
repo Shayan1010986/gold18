@@ -192,6 +192,21 @@ Print a compact SCORECARD table: TF | trend score | RSI | MACD | note.
         Price must pass breakeven before ANY real profit exists.
       • TP1 is chosen so net = TP1_move − COST ≥ MIN_NET_PROFIT_PCT. Moving TP further only
         relocates the net target; it does NOT erase the cost. Never widen SL to "recover" cost.
+
+    LIMIT / PULLBACK ENTRY (how we cover the cost when an immediate entry is too tight):
+      When the trend is aligned but the IMMEDIATE entry cannot reach a target with
+      net_R:R ≥ 1.5 and net ≥ MIN_NET_PROFIT_PCT (price too close to the target), do NOT
+      just say no-trade. Instead offer a CONDITIONAL limit entry at a better price:
+        • BUY  → wait for a pullback DOWN to the nearest real SUPPORT within ≤3% (SWING) /
+                 ≤1.5% (SCALP). Entering lower enlarges the distance to the target so the
+                 same move now clears the cost.
+        • SELL → wait for a pullback UP to the nearest real RESISTANCE within the same band.
+        • Recompute SL/TP/net from the LIMIT entry price, not the current price.
+        • Label it clearly as a LIMIT/CONDITIONAL entry with an activation price, and warn
+          it only triggers IF price returns there (it may never fill).
+      Show the immediate entry when it is valid; show the limit entry when it is the only
+      option or has a clearly better net R:R. This is the honest way to "compensate" cost:
+      a better entry price — never a fabricated target or a widened stop.
     Expected time-to-TP from average entry-frame ATR velocity; SWING may span hours–days,
     SCALP should resolve within ~1–6h (flag if unlikely).
 
@@ -223,8 +238,9 @@ failed condition(s) and the direction(s) you tested.
 ### بخش دوم — سیگنال‌ها (اگر هیچ سیگنالی نبود: ⛔️ شرایط بازار برای ورود مناسب نیست)
 ═════════════════════
 🔔 سیگنال | طلای ۱۸ عیار ([اسکالپ/سویینگ])
-📊 نوع معامله: [خرید 📈 / فروش 📉]
-💰 نقطه ورود (قیمت مرجع): [عدد فارسی] تومان
+📊 نوع معامله: [خرید 📈 / فروش 📉]  |  نوع ورود: [ورود فوری / ورود لیمیت‌شرطی]
+💰 نقطه ورود: [عدد فارسی] تومان   (اگر لیمیت: «منتظر بمان تا قیمت به این‌جا برسد»)
+⏳ [فقط برای لیمیت] فعال‌سازی: وقتی قیمت به [عدد] برسد — ممکن است پر نشود
 🏷️ قیمت خرید/فروش واقعی شما (با اسپرد ±SPREAD_PER_SIDE): [عدد فارسی] تومان
 🟰 قیمت سربه‌سر (مرجع = ورود ± COST): [عدد فارسی] تومان — تا این‌جا سود خالص صفر است
 🛡️ حد ضرر: [عدد فارسی] تومان  (فاصله: [٪])
