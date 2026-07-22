@@ -6,10 +6,20 @@
 ================================================================================
 ## CONFIG (set before you start)
 ================================================================================
-MODE                = SWING          # SWING (default, recommended) | SCALP
-ROUND_TRIP_FEE_PCT  = 1.0            # total buy+sell fee, in percent. NON-NEGOTIABLE cost.
+MODE                = SWING          # SWING (default) | SCALP  (SCALP is now viable — fee is 0)
+ROUND_TRIP_FEE_PCT  = 0.0            # zero-commission platform (user confirmed). Buy+sell commission.
+SPREAD_BUFFER_PCT   = 0.10           # ⚠️ "zero commission" ≠ zero cost. The venue still earns the
+                                     #    bid/ask spread + slippage. This buffer stands in for that.
+                                     #    Measure your real round-trip spread and set it. 0 only if
+                                     #    you have verified there is truly no spread (rare).
+COST_PCT            = ROUND_TRIP_FEE_PCT + SPREAD_BUFFER_PCT   # the ONLY cost figure used below
+MIN_TP_ATR_MULT     = 1.0            # SWING TP1 ≥ this × entry-frame ATR. For SCALP use ≥ 1.5
+                                     #   (with a 0.10% spread, 1×M15-ATR≈0.37% leaves spread at 27%
+                                     #   of the move — too much; ≥1.5×ATR keeps spread under 20%).
 DIRECTION_ALLOWED   = BOTH           # BOTH = long and short are equally valid
-MAX_SIGNALS         = 3
+MAX_SIGNALS         = 3              # per run
+MAX_SIGNALS_PER_DAY = 4              # hard cap across the day — zero commission is NOT a licence to
+                                     #   overtrade; the hidden spread still compounds every trade.
 ACCOUNT_CAN_SHORT   = TRUE           # user can both buy and sell/short
 
 # --- Mode parameter sets ---
@@ -21,12 +31,15 @@ ACCOUNT_CAN_SHORT   = TRUE           # user can both buy and sell/short
 ================================================================================
 ## ⚠️ TWO RULES THAT OVERRIDE EVERYTHING ELSE
 ================================================================================
-RULE A — FEE-AWARE PROFITABILITY (a signal that loses to fees is NOT a signal):
-    Every candidate MUST satisfy, AFTER fees:
-      • net_R:R = (TP1_move% − FEE) / (SL_move% + FEE)  ≥ 1.5
-      • net target on TP1 = TP1_move% − FEE  ≥ 0.8%   (i.e. gross TP1 ≥ 1.8%)
-    If a candidate cannot reach a real key level that satisfies BOTH, DISCARD it.
+RULE A — COST-AWARE PROFITABILITY (commission is 0, but cost is NOT — see SPREAD_BUFFER):
+    Use COST_PCT (= fee + spread buffer) everywhere. Every candidate MUST satisfy, after cost:
+      • net_R:R = (TP1_move% − COST_PCT) / (SL_move% + COST_PCT)  ≥ 1.5
+      • Anti-noise floor: TP1_move% ≥ MIN_TP_ATR_MULT × (entry-frame ATR%)
+      • Spread-edge rule: SPREAD_BUFFER_PCT ≤ 20% of TP1_move%  (don't surrender the
+        move to the spread before you start; skip if the spread eats >1/5 of the target).
+    If a candidate cannot reach a real key level that satisfies ALL THREE, DISCARD it.
     Do NOT shrink the stop or inflate the target to force a pass — use real levels only.
+    Note: with COST≈0 the binding constraint is now the ATR floor + R:R, not the fee.
 
 RULE B — NO DIRECTIONAL DEFAULT (kill the "always BUY" bias):
     • BUY and SELL are evaluated with IDENTICAL rigor. There is no default direction.
@@ -88,7 +101,7 @@ EMA cross (last 300 candles each TF): Golden (EMA50↑EMA200) / Death (EMA50↓E
             → date + price of the most recent cross; current gap in Toman and %, and
             whether the gap is widening or narrowing.
 
-Also compute, per timeframe, ATR% = ATR / Close × 100 (needed by the fee gate).
+Also compute, per timeframe, ATR% = ATR / Close × 100 (needed by the cost/ATR gate).
 
 Mandatory verification block (print it):
   - Last 5 RSI(14) values for M15, all within 0–100
@@ -112,6 +125,13 @@ These real levels are the ONLY allowed take-profit / stop anchors (see RULE A).
 ================================================================================
 ## STEP 5 — SYMMETRIC TREND SCORING (top-down: H4 → H1 → M15)
 ================================================================================
+⚠️ LOOK-AHEAD / REPAINT GUARD (mandatory): the final resampled bin of H4/H1/M15 is
+usually a STILL-FORMING candle (e.g. a 16:35 tick sits in a 16:00–20:00 H4 bin that is
+only ~35 min old). Computing the trend score on it repaints — the score can flip when the
+candle closes. Therefore score EMA/RSI/MACD/slope on the LAST CLOSED candle of each
+timeframe (drop or exclude the forming bin). Use live price only as the entry reference,
+never to compute a higher-timeframe indicator.
+
 For EACH timeframe compute an integer directional score in [−3 … +3]:
   +1 / −1  : Close above / below EMA200
   +1 / −1  : EMA50 above / below EMA200
@@ -139,10 +159,14 @@ Print a compact SCORECARD table: TF | trend score | RSI | MACD | note.
 
 6b) QUALITY GATE — every box must be TRUE, else discard the candidate:
     □ 1  ≥ 2 of 3 agree on H1: {trend score sign, RSI vs 50, MACD histogram sign}
-    □ 2  RULE A passes: net_R:R ≥ 1.5 AND net TP1 ≥ 0.8% after 1% fee
+    □ 2  RULE A passes: net_R:R ≥ 1.5 AND TP1_move ≥ MIN_TP_ATR_MULT×ATR AND spread ≤ 20% of TP1
     □ 3  Volatility sane: entry-frame ATR ≤ 2× its own 20-period average (no vol spike)
     □ 4  Entry not trapped between two levels each < 0.3% away
     □ 5  SL distance within the mode's min/max band (SWING 0.8–3.0% · SCALP 0.4–1.0%)
+    □ 6  Signal confirmed on a CLOSED candle (no intrabar / repainting triggers)
+    □ 7  SWING only: if the venue charges overnight swap/holding cost, subtract an
+         estimate of it from net profit for multi-session holds (physical Etehadiye = 0;
+         a leveraged/futures venue ≠ 0). Zero-commission ≠ zero carry.
 
 6c) RED-TEAM (mandatory anti-bias check — do this OUT LOUD before emitting):
     For each surviving candidate, write ≥2 sentences arguing the OPPOSITE direction
@@ -152,13 +176,26 @@ Print a compact SCORECARD table: TF | trend score | RSI | MACD | note.
 
 6d) STOPS & TARGETS (use ONLY real STEP-4 levels; never invent a level to pass a gate):
     SL   = mode ATR basis, clamped to the mode band. Place just beyond a real level.
-    TP1  = nearest opposing H1 key level giving net_R:R ≥ 1.5 after fees.
-    TP2  = next H4 key level or matching Fib giving net_R:R ≥ 2.5 after fees.
+    TP1  = nearest opposing H1 key level giving net_R:R ≥ 1.5 after cost AND ≥ 1×ATR.
+    TP2  = next H4 key level or matching Fib giving net_R:R ≥ 2.5 after cost.
+    If price sits at a range extreme with NO real level ahead (no overhead target for a
+    long / no target below for a short), there is no defined objective → output NEUTRAL.
+    Do not chase a breakout without a measured target.
     Expected time-to-TP from average entry-frame ATR velocity; SWING may span hours–days,
     SCALP should resolve within ~1–6h (flag if unlikely).
 
 If NOTHING passes: output ⛔ "شرایط بازار برای ورود مناسب نیست" and name the exact
 failed condition(s) and the direction(s) you tested.
+
+6e) OPERATIONAL CAUTIONS (state them when relevant, do not silently ignore):
+    • Overnight gap risk: the market is closed ~22:00→09:00 Tehran. A stop cannot fill
+      while closed; a rial/USD or global-gold move overnight can gap PAST the stop. For
+      SWING positions held overnight, size for a possible gap, not just the stop distance.
+    • Etehadiye price is ≈ (USD/Toman × global gold) + local premium (حباب). In a premium
+      spike/collapse or an administrative price freeze, technical levels stop working —
+      prefer NEUTRAL when price detaches from its normal behaviour.
+    • KEEP A JOURNAL: log every signal's outcome (hit TP / hit SL / timed out) so the real
+      post-spread win rate is measured. Without it you are flying blind on whether an edge exists.
 
 ================================================================================
 ## STEP 7 — FINAL OUTPUT (Persian; Persian digits ۰۱۲۳; max 3 signals)
@@ -180,8 +217,8 @@ failed condition(s) and the direction(s) you tested.
 🛡️ حد ضرر: [عدد فارسی] تومان  (فاصله: [٪])
 🎯 حد سود اول: [عدد فارسی] تومان  (فاصله: [٪])
 🎯 حد سود دوم: [عدد فارسی] تومان  (فاصله: [٪])
-💵 سود خالص تخمینی بعد از کارمزد ۱٪ — هدف اول: [٪] | هدف دوم: [٪]
-⚖️ نسبت ریسک‌به‌ریوارد خالص (بعد از کارمزد): [عدد]
+💵 سود خالص تخمینی بعد از هزینه (اسپرد) — هدف اول: [٪] | هدف دوم: [٪]
+⚖️ نسبت ریسک‌به‌ریوارد خالص (بعد از هزینه): [عدد]
 ⏱️ بازه زمانی تخمینی: [عدد فارسی] ([ساعت/روز])
 ✅ دلیل اصلی: [یک جمله]
 🔎 چرا جهت مخالف رد شد: [یک جمله از مرحله red-team]
@@ -190,6 +227,6 @@ failed condition(s) and the direction(s) you tested.
 
 ### Output rules
 - All numeric outputs in Persian digits.
-- Every signal MUST show net-after-fee profit and net R:R. A signal without them is invalid.
+- Every signal MUST show net-after-cost profit and net R:R. A signal without them is invalid.
 - Max 3 signals. Prefer fewer, higher-quality signals over filling the quota.
 - Honesty over action: if the honest answer is "no trade", say it.
